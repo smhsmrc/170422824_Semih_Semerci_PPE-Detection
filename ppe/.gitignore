@@ -1,0 +1,56 @@
+build
+.vscode
+.DS_Store
+torchvision
+ncnn
+libtorch
+vision
+.env
+*.tar.gz
+*.tgz
+ocr_crops
+opencv-3.4.7
+
+
+# Model dosyaları ve inferans dosyaları
+*.pdmodel
+*.pdiparams
+*.pdiparams.info
+
+# Build ve derleme dosyaları
+cpp_infer/opencv-3.4.7/
+cpp_infer/paddle_inference_install_dir/
+cpp_infer/inference/
+cpp_infer/build/
+
+# Büyük kütüphane dosyaları
+*.dylib
+*.a
+*.so
+*.dll
+
+# Arşiv dosyaları
+*.tar
+*.zip
+*.rar
+*.7z
+
+# Test ve temporary dosyalar
+opencv_test_*
+opencv_perf_*
+*.tmp
+*.temp
+
+# Vec dosyaları (büyük training dosyaları)
+*.vec
+
+# Git objects (torchvision alt klasöründe)
+torchvision/.git/
+
+# Log dosyaları
+*.log
+
+# Cache dosyaları
+__pycache__/
+*.pyc
+*.pyo

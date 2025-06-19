@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>TrackersCpp</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.example.TrackersCpp</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Uygulama kamera erişimi gerektiriyor.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Uygulama mikrofon erişimi gerektiriyor.</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Yerel ağ bağlantısı gerekiyor.</string>
+    <key>NSCameraUseContinuityCameraDeviceType</key>
+    <true/>
+</dict>
+</plist>
