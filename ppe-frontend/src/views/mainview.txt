@@ -1,0 +1,1672 @@
+<template>
+  <div class="main-container">
+    <!-- Durum Çubuğu (aynı kalacak) -->
+    <div class="status-bar">
+      <div class="status-item">
+        <span class="status-label">🔗 Bağlantı:</span>
+        <span :class="['status-value', connectionStatus]">
+          {{ connectionStatusText }}
+        </span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">👥 Aktif Çalışan:</span>
+        <span class="status-value">{{ activeWorkerCount }}</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">⚠️ Bugünkü İhlaller:</span>
+        <span class="status-value">{{ todayViolations }}</span>
+      </div>
+    </div>
+
+    <!-- Ana İçerik -->
+    <div class="content-grid">
+      <!-- Sol Panel - Kamera -->
+      <div class="camera-panel">
+        <div class="panel-header">
+          <h3>📹 Kamera Görüntüsü</h3>
+          <div class="camera-controls">
+            <button
+              @click="toggleDetection"
+              :class="['btn', isDetectionActive ? 'btn-danger' : 'btn-success']"
+              :disabled="cameraLoading"
+            >
+              {{ isDetectionActive ? "⏹️ Durdur" : "▶️ Başlat" }}
+            </button>
+            <button @click="toggleCameraSource" class="btn btn-info">
+              {{ useRealCamera ? "💻 Mac Kamera" : "🎭 Mock Kamera" }}
+            </button>
+            <button
+              @click="switchCamera"
+              class="btn btn-warning"
+              v-if="useRealCamera && availableCameras > 1"
+            >
+              🔄 Kamera Değiştir
+            </button>
+            <button @click="checkCameraStatus" class="btn btn-secondary">
+              🔍 Kamera Kontrol
+            </button>
+          </div>
+        </div>
+
+        <div class="camera-view">
+          <!-- ✅ HER ZAMAN RENDER ET - SADECE GÖRÜNÜRLÜK KONTROL ET -->
+          <!-- Video Element - Her zaman DOM'da olsun -->
+          <video
+            ref="videoElement"
+            class="camera-stream"
+            :style="{
+              display: useRealCamera && !cameraLoading ? 'block' : 'none',
+            }"
+            autoplay
+            muted
+            playsinline
+            @loadedmetadata="handleVideoLoad"
+            @error="handleVideoError"
+          ></video>
+
+          <!-- Kamera Loading Durumu -->
+          <div v-if="cameraLoading" class="camera-placeholder">
+            <div class="placeholder-content">
+              <div class="spinner"></div>
+              <p>{{ cameraLoadingMessage || "Kamera hazırlanıyor..." }}</p>
+              <small>{{ cameraDeviceInfo }}</small>
+            </div>
+          </div>
+
+          <!-- Gerçek Kamera Aktif Durumu -->
+          <div
+            v-else-if="useRealCamera && cameraConnected && cameraStream"
+            class="camera-overlay"
+          >
+            <!-- Kamera Bilgileri -->
+            <div class="camera-info">
+              <div class="info-badge">
+                <span>📷 {{ currentCameraLabel || "Mac Kamera" }}</span>
+              </div>
+              <div class="info-badge">
+                <span>📐 {{ videoResolution }}</span>
+              </div>
+            </div>
+
+            <!-- Kamera Durumu -->
+            <div class="camera-status-indicator">
+              <div class="status-dot connected"></div>
+              <span>Bağlı</span>
+            </div>
+
+            <!-- Detection Overlay -->
+            <div class="detection-overlay">
+              <div
+                v-for="detection in currentDetections"
+                :key="detection.id"
+                class="detection-box real-detection"
+                :style="getRealDetectionStyle(detection)"
+              >
+                <div class="detection-label">
+                  <span class="worker-id"
+                    >ID: {{ detection.track_id || detection.worker_id }}</span
+                  >
+                  <span
+                    class="safety-status"
+                    :class="detection.has_helmet ? 'safe' : 'danger'"
+                  >
+                    {{ detection.has_helmet ? "✅ Baret Var" : "❌ Baret Yok" }}
+                  </span>
+                  <span class="confidence"
+                    >{{ Math.round((detection.confidence || 0) * 100) }}%</span
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mock Kamera -->
+          <div v-else-if="!useRealCamera" class="mock-camera">
+            <div class="mock-video">
+              <div class="mock-overlay">
+                <div class="mock-info">
+                  <div>🎭 Demo Modu</div>
+                  <div>Simülasyon çalışıyor</div>
+                  <div>Zaman: {{ currentTime }}</div>
+                  <div>FPS: {{ currentFPS }}</div>
+                </div>
+
+                <div class="camera-status-indicator">
+                  <div class="status-dot connected"></div>
+                  <span>Mock Aktif</span>
+                </div>
+              </div>
+
+              <!-- Mock Detection Boxes -->
+              <div v-if="isDetectionActive" class="detection-overlay">
+                <div
+                  v-for="detection in mockDetections"
+                  :key="detection.id"
+                  class="detection-box"
+                  :style="getDetectionStyle(detection)"
+                >
+                  <div class="detection-label">
+                    <span class="worker-id">ID: {{ detection.worker_id }}</span>
+                    <span
+                      :class="[
+                        'safety-status',
+                        detection.has_helmet ? 'safe' : 'danger',
+                      ]"
+                    >
+                      {{
+                        detection.has_helmet ? "✅ Baret Var" : "❌ Baret Yok"
+                      }}
+                    </span>
+                    <span class="confidence">{{ detection.confidence }}%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Kamera Bekleme/Hata -->
+          <div v-else class="camera-placeholder">
+            <div class="placeholder-content">
+              <div class="camera-icon">📹</div>
+              <h3>Mac Kamerası Bekleniyor</h3>
+              <p>Tespit başlatmak için "▶️ Başlat" butonuna tıklayın</p>
+              <p v-if="availableCameras > 0" class="text-success">
+                {{ availableCameras }} kamera bulundu
+              </p>
+
+              <div v-if="cameraError" class="camera-error">
+                <p class="text-danger">⚠️ {{ cameraError }}</p>
+                <button @click="retryCamera" class="btn btn-warning btn-sm">
+                  🔄 Tekrar Dene
+                </button>
+                <button @click="switchToMock" class="btn btn-info btn-sm">
+                  🎭 Mock Kameraya Geç
+                </button>
+              </div>
+
+              <!-- Kamera Listesi -->
+              <div v-if="cameraDevices.length > 0" class="camera-list">
+                <h5>📷 Kullanılabilir Kameralar:</h5>
+                <div
+                  v-for="(camera, index) in cameraDevices"
+                  :key="camera.deviceId"
+                  class="camera-item"
+                >
+                  <button
+                    @click="selectCamera(index)"
+                    :class="[
+                      'btn',
+                      'btn-sm',
+                      selectedCameraIndex === index
+                        ? 'btn-success'
+                        : 'btn-outline-secondary',
+                    ]"
+                  >
+                    {{ camera.label || `Kamera ${index + 1}` }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sağ Panel - Bilgiler (aynı kalacak) -->
+      <div class="info-panel">
+        <!-- Son Tespitler -->
+        <div class="info-card">
+          <h4>🎯 Son Tespitler</h4>
+          <div class="detection-list">
+            <div
+              v-for="detection in recentDetections.slice(0, 5)"
+              :key="detection.id"
+              class="detection-item"
+            >
+              <div class="detection-time">
+                {{ formatTime(detection.timestamp) }}
+              </div>
+              <div class="detection-details">
+                <strong>ID:</strong>
+                {{ detection.track_id || detection.worker_id }}<br />
+                <span
+                  :class="[
+                    'ppe-status',
+                    detection.has_helmet ? 'safe' : 'danger',
+                  ]"
+                >
+                  {{ detection.has_helmet ? "✅ Baret Var" : "❌ Baret Yok" }}
+                </span>
+              </div>
+            </div>
+            <div v-if="recentDetections.length === 0" class="no-detections">
+              <p>Henüz tespit yapılmadı</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- İstatistikler -->
+        <div class="info-card">
+          <h4>📊 Günlük İstatistikler</h4>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <div class="stat-value">{{ dailyStats.totalDetections }}</div>
+              <div class="stat-label">Toplam Tespit</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value safe">{{ dailyStats.safeDetections }}</div>
+              <div class="stat-label">Güvenli</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value danger">{{ dailyStats.violations }}</div>
+              <div class="stat-label">İhlal</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value">{{ dailyStats.complianceRate }}%</div>
+              <div class="stat-label">Uyum Oranı</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hızlı Eylemler -->
+        <div class="info-card">
+          <h4>⚡ Hızlı Eylemler</h4>
+          <div class="action-buttons">
+            <button @click="$router.push('/violations')" class="action-btn">
+              ⚠️ İhlalleri Görüntüle
+            </button>
+            <button @click="$router.push('/workers')" class="action-btn">
+              👥 Çalışan Listesi
+            </button>
+            <button @click="$router.push('/settings')" class="action-btn">
+              ⚙️ Ayarlar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+export default {
+  name: "MainView",
+  data() {
+    return {
+      API_BASE_URL: "http://localhost:5001/api",
+
+      // Detection durumu
+      isDetectionActive: false,
+      connectionStatus: "connected",
+      currentDetections: [],
+      recentDetections: [],
+      activeWorkerCount: 0,
+      todayViolations: 0,
+      currentTime: "",
+      currentFPS: 30,
+
+      // Kamera yönetimi
+      useRealCamera: true,
+      cameraStream: null,
+      cameraConnected: false,
+      cameraLoading: false,
+      cameraError: null,
+      cameraLoadingMessage: "",
+      cameraDeviceInfo: "",
+      availableCameras: 0,
+      cameraDevices: [],
+      selectedCameraIndex: 0,
+      currentCameraLabel: "",
+      videoResolution: "",
+
+      // Mock veriler
+      mockDetections: [
+        {
+          id: 1,
+          worker_id: "EMP001",
+          has_helmet: true,
+          confidence: 95,
+          x: 20,
+          y: 25,
+          width: 15,
+          height: 20,
+        },
+        {
+          id: 2,
+          worker_id: "EMP002",
+          has_helmet: false,
+          confidence: 88,
+          x: 60,
+          y: 35,
+          width: 12,
+          height: 18,
+        },
+      ],
+
+      // İstatistikler
+      dailyStats: {
+        totalDetections: 0,
+        safeDetections: 0,
+        violations: 0,
+        complianceRate: 100,
+      },
+
+      // Interval'lar
+      pollInterval: null,
+      timeInterval: null,
+      mockAnimationInterval: null,
+    };
+  },
+
+  computed: {
+    connectionStatusText() {
+      switch (this.connectionStatus) {
+        case "connected":
+          return "Bağlı";
+        case "connecting":
+          return "Bağlanıyor...";
+        case "error":
+          return "Bağlantı Hatası";
+        case "disconnected":
+          return "Bağlantı Kesildi";
+        default:
+          return "Bilinmiyor";
+      }
+    },
+  },
+
+  mounted() {
+    console.log("🚀 MainView yüklendi");
+    this.loadDailyStats();
+    this.startPolling();
+    this.startTimeUpdate();
+    this.checkCameraAvailability();
+  },
+
+  beforeUnmount() {
+    console.log("🛑 MainView kapatılıyor");
+    this.stopPolling();
+    this.stopTimeUpdate();
+    this.stopCamera();
+    this.stopMockAnimation();
+  },
+
+  methods: {
+    // ================================
+    // ✅ KAMERA YÖNETİMİ - DÜZELTME
+    // ================================
+
+    async checkCameraAvailability() {
+      try {
+        console.log("🔍 Kameralar kontrol ediliyor...");
+
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(
+          (device) => device.kind === "videoinput"
+        );
+
+        this.cameraDevices = videoDevices;
+        this.availableCameras = videoDevices.length;
+
+        console.log("📹 Bulunan kameralar:", videoDevices);
+
+        if (videoDevices.length > 0) {
+          const macCameraIndex = videoDevices.findIndex(
+            (device) =>
+              device.label.toLowerCase().includes("facetime") ||
+              device.label.toLowerCase().includes("built-in") ||
+              device.label.toLowerCase().includes("internal")
+          );
+
+          this.selectedCameraIndex = macCameraIndex >= 0 ? macCameraIndex : 0;
+          this.currentCameraLabel =
+            videoDevices[this.selectedCameraIndex]?.label || "Mac Kamera";
+
+          console.log(
+            `✅ ${videoDevices.length} kamera bulundu, seçilen: ${this.currentCameraLabel}`
+          );
+        } else {
+          console.log("❌ Kamera bulunamadı");
+          this.useRealCamera = false;
+        }
+      } catch (error) {
+        console.error("❌ Kamera kontrol hatası:", error);
+        this.cameraError = "Kamera listesi alınamadı";
+        this.useRealCamera = false;
+      }
+    },
+
+    async initializeRealCamera() {
+      console.log("🎥 Mac kamerası başlatılıyor...");
+
+      this.cameraLoading = true;
+      this.cameraLoadingMessage = "Mac kamerası hazırlanıyor...";
+      this.cameraError = null;
+
+      try {
+        // ✅ Video element kontrolü - Her zaman DOM'da olmalı
+        console.log("🎬 Video element kontrolü yapılıyor...");
+
+        // DOM güncellemesini bekle
+        await this.$nextTick();
+
+        // Ekstra bekleme süresi
+        await new Promise((resolve) => setTimeout(resolve, 200));
+
+        const videoElement = this.$refs.videoElement;
+        console.log("🎬 Video element referansı:", videoElement);
+        console.log("🎬 Video element DOM'da mı?", !!videoElement);
+
+        if (!videoElement) {
+          throw new Error("Video elementi DOM'da bulunamadı - ref sorunu");
+        }
+
+        // Seçilen kamera cihazını al
+        const selectedDevice = this.cameraDevices[this.selectedCameraIndex];
+        this.cameraDeviceInfo = selectedDevice?.label || "Mac Kamera";
+
+        // Mac için optimize edilmiş constraints
+        const constraints = {
+          video: {
+            deviceId: selectedDevice?.deviceId
+              ? { exact: selectedDevice.deviceId }
+              : undefined,
+            width: { ideal: 1280, min: 640, max: 1920 },
+            height: { ideal: 720, min: 480, max: 1080 },
+            frameRate: { ideal: 30, min: 15, max: 60 },
+            aspectRatio: { ideal: 16 / 9 },
+          },
+          audio: false,
+        };
+
+        console.log("📱 Kamera constraints:", constraints);
+        this.cameraLoadingMessage = "Kamera erişim izni isteniyor...";
+
+        // Stream al
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+        console.log("✅ Stream alındı:", stream);
+        console.log("📹 Video tracks:", stream.getVideoTracks());
+
+        this.cameraStream = stream;
+        this.cameraLoadingMessage = "Video elementi hazırlanıyor...";
+
+        // ✅ Stream'i video elementine ata
+        console.log("🎬 Stream video elementine atanıyor...");
+        videoElement.srcObject = stream;
+
+        // Video metadata yüklenene kadar bekle
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error("Video yükleme timeout (10s)"));
+          }, 10000);
+
+          const onLoad = () => {
+            clearTimeout(timeout);
+            videoElement.removeEventListener("loadedmetadata", onLoad);
+            videoElement.removeEventListener("error", onError);
+
+            console.log("✅ Video metadata yüklendi");
+            console.log(
+              `📐 Video boyutları: ${videoElement.videoWidth}x${videoElement.videoHeight}`
+            );
+
+            this.videoResolution = `${videoElement.videoWidth}x${videoElement.videoHeight}`;
+            this.cameraConnected = true;
+            resolve();
+          };
+
+          const onError = (error) => {
+            clearTimeout(timeout);
+            videoElement.removeEventListener("loadedmetadata", onLoad);
+            videoElement.removeEventListener("error", onError);
+            reject(error);
+          };
+
+          videoElement.addEventListener("loadedmetadata", onLoad);
+          videoElement.addEventListener("error", onError);
+        });
+
+        // Video oynatmayı dene
+        try {
+          await videoElement.play();
+          console.log("▶️ Video oynatma başladı");
+        } catch (playError) {
+          console.warn("⚠️ Video autoplay hatası (normal):", playError);
+        }
+
+        console.log("✅ Mac kamerası başarıyla başlatıldı");
+      } catch (error) {
+        console.error("❌ Kamera hatası:", error);
+        this.handleCameraError(error);
+      } finally {
+        this.cameraLoading = false;
+        this.cameraLoadingMessage = "";
+        this.cameraDeviceInfo = "";
+      }
+    },
+
+    handleCameraError(error) {
+      this.cameraConnected = false;
+      this.cameraStream = null;
+
+      if (error.name === "NotAllowedError") {
+        this.cameraError =
+          "Kamera erişim izni verilmedi. Tarayıcı ayarlarından Mac kamerasına izin verin.";
+      } else if (error.name === "NotFoundError") {
+        this.cameraError =
+          "Mac kamerası bulunamadı. Kameranın bağlı ve çalışır durumda olduğundan emin olun.";
+      } else if (error.name === "NotReadableError") {
+        this.cameraError =
+          "Mac kamerası başka bir uygulama tarafından kullanılıyor.";
+      } else if (error.message.includes("timeout")) {
+        this.cameraError =
+          "Mac kamerası bağlantı zaman aşımı. Kamerayı kontrol edin.";
+      } else if (error.message.includes("DOM")) {
+        this.cameraError = "Video elementi hazırlanamadı. Sayfayı yenileyin.";
+      } else {
+        this.cameraError = `Mac kamerası hatası: ${error.message}`;
+      }
+
+      console.log("❌ Kamera hatası:", this.cameraError);
+    },
+
+    async selectCamera(index) {
+      console.log(`📷 Kamera seçiliyor: ${index}`);
+
+      this.selectedCameraIndex = index;
+      this.currentCameraLabel =
+        this.cameraDevices[index]?.label || `Kamera ${index + 1}`;
+
+      if (this.isDetectionActive && this.useRealCamera) {
+        this.stopCamera();
+        await this.initializeRealCamera();
+      }
+    },
+
+    async switchCamera() {
+      if (this.cameraDevices.length <= 1) return;
+
+      const nextIndex =
+        (this.selectedCameraIndex + 1) % this.cameraDevices.length;
+      await this.selectCamera(nextIndex);
+    },
+
+    switchToMock() {
+      console.log("🎭 Mock kameraya geçiliyor...");
+      this.useRealCamera = false;
+      this.cameraError = null;
+    },
+
+    stopCamera() {
+      console.log("🛑 Kamera durduruluyor...");
+
+      if (this.cameraStream) {
+        this.cameraStream.getTracks().forEach((track) => {
+          track.stop();
+        });
+        this.cameraStream = null;
+      }
+
+      const videoElement = this.$refs.videoElement;
+      if (videoElement) {
+        videoElement.srcObject = null;
+      }
+
+      this.cameraConnected = false;
+      this.videoResolution = "";
+    },
+
+    async toggleCameraSource() {
+      console.log(
+        "🔄 Kamera kaynağı değiştiriliyor:",
+        this.useRealCamera ? "Mock" : "Mac"
+      );
+
+      this.useRealCamera = !this.useRealCamera;
+      this.cameraError = null;
+
+      if (this.isDetectionActive) {
+        await this.stopDetection();
+        await this.startDetection();
+      }
+    },
+
+    async retryCamera() {
+      console.log("🔄 Mac kamerası yeniden deneniyor...");
+      this.cameraError = null;
+      this.useRealCamera = true;
+
+      if (this.isDetectionActive) {
+        await this.initializeRealCamera();
+      }
+    },
+
+    handleVideoLoad() {
+      console.log("✅ Video yüklendi ve oynatılıyor");
+      this.cameraConnected = true;
+    },
+
+    handleVideoError(error) {
+      console.error("❌ Video element hatası:", error);
+      this.cameraError = "Video akışı hatası";
+    },
+
+    async checkCameraStatus() {
+      console.log("🔍 Kamera durumu kontrol ediliyor...");
+      await this.checkCameraAvailability();
+      this.debugVideoElement();
+    },
+
+    debugVideoElement() {
+      console.log("🔍 Video element debug:");
+      console.log("- useRealCamera:", this.useRealCamera);
+      console.log("- cameraConnected:", this.cameraConnected);
+      console.log("- cameraStream:", this.cameraStream);
+      console.log("- selectedCameraIndex:", this.selectedCameraIndex);
+      console.log("- currentCameraLabel:", this.currentCameraLabel);
+      console.log("- videoElement ref:", this.$refs.videoElement);
+      console.log("- DOM video element:", document.querySelector("video"));
+
+      // Video element varlığını kontrol et
+      const videoEl = this.$refs.videoElement;
+      if (videoEl) {
+        console.log("✅ Video element bulundu");
+        console.log("- Video width:", videoEl.videoWidth);
+        console.log("- Video height:", videoEl.videoHeight);
+        console.log("- Video readyState:", videoEl.readyState);
+        console.log("- Video srcObject:", videoEl.srcObject);
+      } else {
+        console.log("❌ Video element bulunamadı");
+      }
+    },
+
+    // ================================
+    // DETECTION YÖNETİMİ
+    // ================================
+
+    async toggleDetection() {
+      console.log(
+        "🎬 Toggle detection:",
+        this.isDetectionActive ? "STOP" : "START"
+      );
+
+      if (this.isDetectionActive) {
+        await this.stopDetection();
+      } else {
+        await this.startDetection();
+      }
+    },
+
+    async startDetection() {
+      try {
+        console.log("🎬 Tespit başlatılıyor...");
+        this.isDetectionActive = true;
+
+        if (this.useRealCamera) {
+          await this.initializeRealCamera();
+        }
+
+        const response = await fetch(`${this.API_BASE_URL}/ppe/start`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          console.log("✅ Tespit başlatıldı:", result.message);
+          this.connectionStatus = "connected";
+          this.startMockAnimation();
+        } else {
+          console.error("❌ Tespit başlatma hatası:", result.message);
+          this.isDetectionActive = false;
+        }
+      } catch (error) {
+        console.error("❌ Tespit başlatma hatası:", error);
+        this.isDetectionActive = false;
+        this.connectionStatus = "error";
+      }
+    },
+
+    async stopDetection() {
+      try {
+        console.log("⏹️ Tespit durduruluyor...");
+        this.isDetectionActive = false;
+
+        this.stopCamera();
+        this.stopMockAnimation();
+
+        const response = await fetch(`${this.API_BASE_URL}/ppe/stop`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          console.log("✅ Tespit durduruldu:", result.message);
+          this.currentDetections = [];
+        }
+      } catch (error) {
+        console.error("❌ Tespit durdurma hatası:", error);
+      }
+    },
+
+    // ================================
+    // MOCK ANIMATION
+    // ================================
+
+    startMockAnimation() {
+      if (!this.useRealCamera) {
+        this.mockAnimationInterval = setInterval(() => {
+          this.updateMockDetections();
+        }, 2000);
+      }
+    },
+
+    stopMockAnimation() {
+      if (this.mockAnimationInterval) {
+        clearInterval(this.mockAnimationInterval);
+        this.mockAnimationInterval = null;
+      }
+    },
+
+    updateMockDetections() {
+      this.mockDetections = this.mockDetections.map((detection) => ({
+        ...detection,
+        x: Math.random() * 60 + 10,
+        y: Math.random() * 50 + 15,
+        confidence: Math.floor(Math.random() * 20 + 80),
+        has_helmet: Math.random() > 0.3,
+      }));
+
+      const mockRecentDetection = {
+        id: Date.now(),
+        track_id: this.mockDetections[0].worker_id,
+        has_helmet: this.mockDetections[0].has_helmet,
+        timestamp: new Date().toISOString(),
+        confidence: this.mockDetections[0].confidence / 100,
+      };
+
+      this.recentDetections.unshift(mockRecentDetection);
+      if (this.recentDetections.length > 20) {
+        this.recentDetections = this.recentDetections.slice(0, 20);
+      }
+    },
+
+    // ================================
+    // POLLING VE STATS
+    // ================================
+
+    startPolling() {
+      console.log("🔄 Polling başlatılıyor...");
+      this.pollInterval = setInterval(async () => {
+        if (this.isDetectionActive && this.useRealCamera) {
+          await this.fetchLatestDetections();
+        }
+        await this.fetchStats();
+      }, 2000);
+    },
+
+    stopPolling() {
+      if (this.pollInterval) {
+        clearInterval(this.pollInterval);
+        this.pollInterval = null;
+      }
+    },
+
+    startTimeUpdate() {
+      this.updateTime();
+      this.timeInterval = setInterval(this.updateTime, 1000);
+    },
+
+    stopTimeUpdate() {
+      if (this.timeInterval) {
+        clearInterval(this.timeInterval);
+        this.timeInterval = null;
+      }
+    },
+
+    updateTime() {
+      this.currentTime = new Date().toLocaleTimeString("tr-TR");
+    },
+
+    async fetchLatestDetections() {
+      try {
+        const response = await fetch(`${this.API_BASE_URL}/ppe/detections`);
+        const result = await response.json();
+
+        if (result.success && result.data?.detections) {
+          const detections = result.data.detections;
+
+          if (detections.length > 0) {
+            this.currentDetections = detections;
+
+            detections.forEach((detection) => {
+              const exists = this.recentDetections.find(
+                (recent) => recent.id === detection.id
+              );
+
+              if (!exists) {
+                this.recentDetections.unshift({
+                  ...detection,
+                  timestamp: detection.timestamp || new Date().toISOString(),
+                });
+              }
+            });
+
+            // Son 20 tespit kaydet
+            if (this.recentDetections.length > 20) {
+              this.recentDetections = this.recentDetections.slice(0, 20);
+            }
+          }
+
+          this.connectionStatus = "connected";
+        }
+      } catch (error) {
+        console.error("❌ Detection fetch hatası:", error);
+        this.connectionStatus = "error";
+      }
+    },
+
+    async fetchStats() {
+      try {
+        const response = await fetch(`${this.API_BASE_URL}/ppe/stats`);
+        const result = await response.json();
+
+        if (result.success && result.data) {
+          this.activeWorkerCount = result.data.active_workers || 0;
+          this.todayViolations = result.data.today_violations || 0;
+
+          // Günlük istatistikleri güncelle
+          if (result.data.daily_stats) {
+            this.dailyStats = {
+              totalDetections: result.data.daily_stats.total_detections || 0,
+              safeDetections: result.data.daily_stats.safe_detections || 0,
+              violations: result.data.daily_stats.violations || 0,
+              complianceRate: result.data.daily_stats.compliance_rate || 100,
+            };
+          }
+        }
+      } catch (error) {
+        console.error("❌ Stats fetch hatası:", error);
+      }
+    },
+
+    async loadDailyStats() {
+      try {
+        const response = await fetch(`${this.API_BASE_URL}/ppe/daily-stats`);
+        const result = await response.json();
+
+        if (result.success && result.data) {
+          this.dailyStats = result.data;
+        }
+      } catch (error) {
+        console.error("❌ Daily stats yükleme hatası:", error);
+      }
+    },
+
+    // ================================
+    // STYLE HELPERS
+    // ================================
+
+    getDetectionStyle(detection) {
+      return {
+        left: detection.x + "%",
+        top: detection.y + "%",
+        width: detection.width + "%",
+        height: detection.height + "%",
+      };
+    },
+
+    getRealDetectionStyle(detection) {
+      // Gerçek detection için bbox kullan
+      if (detection.bbox) {
+        return {
+          left: detection.bbox.x + "%",
+          top: detection.bbox.y + "%",
+          width: detection.bbox.width + "%",
+          height: detection.bbox.height + "%",
+        };
+      }
+
+      // Fallback - sabit pozisyonlar
+      const positions = [
+        { left: "15%", top: "25%", width: "120px", height: "80px" },
+        { left: "45%", top: "35%", width: "120px", height: "80px" },
+        { left: "70%", top: "20%", width: "120px", height: "80px" },
+      ];
+
+      const index =
+        (detection.track_id || detection.id || 0) % positions.length;
+      return positions[index];
+    },
+
+    formatTime(timestamp) {
+      if (!timestamp) return "--:--:--";
+      return new Date(timestamp).toLocaleTimeString("tr-TR");
+    },
+  },
+};
+</script>
+
+<style scoped>
+/* ================================ */
+/* ANA CONTAINER VE LAYOUT */
+/* ================================ */
+
+.main-container {
+  padding: 1rem;
+  background: #f8f9fa;
+  min-height: 100vh;
+}
+
+.status-bar {
+  background: white;
+  padding: 1rem;
+  border-radius: 8px;
+  display: flex;
+  gap: 2rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.status-label {
+  font-weight: 500;
+  color: #6c757d;
+}
+
+.status-value {
+  font-weight: bold;
+}
+
+.status-value.connected {
+  color: #28a745;
+}
+.status-value.disconnected {
+  color: #ffc107;
+}
+.status-value.error {
+  color: #dc3545;
+}
+
+.content-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1rem;
+  height: calc(100vh - 200px);
+}
+
+.camera-panel,
+.info-panel {
+  background: white;
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #e9ecef;
+}
+
+.camera-controls {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.camera-view {
+  height: calc(100% - 60px);
+  background: #000;
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+  min-height: 400px;
+}
+
+/* ================================ */
+/* ✅ VIDEO ELEMENT - HER ZAMAN DOM'DA */
+/* ================================ */
+
+.camera-stream {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+  background: #000;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+/* ================================ */
+/* ✅ KAMERA PLACEHOLDER VE LOADING */
+/* ================================ */
+
+.camera-placeholder {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(45deg, #1a1a1a, #333);
+  color: white;
+  border-radius: 8px;
+  padding: 2rem;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+}
+
+.placeholder-content {
+  text-align: center;
+  max-width: 400px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #333;
+  border-top: 4px solid #007bff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.camera-icon {
+  font-size: 4rem;
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.camera-error {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: rgba(220, 53, 69, 0.1);
+  border: 1px solid rgba(220, 53, 69, 0.3);
+  border-radius: 8px;
+}
+
+.camera-error .btn {
+  margin: 0.25rem;
+}
+
+.text-success {
+  color: #28a745;
+}
+.text-danger {
+  color: #dc3545;
+}
+
+/* ✅ KAMERA LİSTESİ */
+.camera-list {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+.camera-list h5 {
+  margin-bottom: 1rem;
+  color: #ccc;
+}
+
+.camera-item {
+  margin-bottom: 0.5rem;
+}
+
+/* ================================ */
+/* ✅ KAMERA OVERLAY - REALTİME */
+/* ================================ */
+
+.camera-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+/* ✅ KAMERA BİLGİLERİ */
+.camera-info {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 10;
+}
+
+.info-badge {
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 6px 12px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-family: "Courier New", monospace;
+}
+
+/* ✅ KAMERA DURUM GÖSTERGESİ */
+.camera-status-indicator {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 5px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 10;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+.status-dot.connected {
+  background: #28a745;
+}
+
+.status-dot.disconnected {
+  background: #dc3545;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ================================ */
+/* ✅ MOCK KAMERA STİLLERİ */
+/* ================================ */
+
+.mock-camera {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+  min-height: 400px;
+}
+
+.mock-video {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: radial-gradient(
+      circle at 30% 70%,
+      rgba(255, 255, 255, 0.1) 2px,
+      transparent 2px
+    ),
+    radial-gradient(
+      circle at 70% 30%,
+      rgba(255, 255, 255, 0.1) 1px,
+      transparent 1px
+    ),
+    radial-gradient(
+      circle at 20% 20%,
+      rgba(255, 255, 255, 0.05) 1px,
+      transparent 1px
+    );
+  animation: mockNoise 2s infinite;
+}
+
+@keyframes mockNoise {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+.mock-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 15px;
+}
+
+.mock-info {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 10px 15px;
+  border-radius: 5px;
+  font-family: "Courier New", monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  z-index: 10;
+}
+
+/* ================================ */
+/* ✅ DETECTION OVERLAY */
+/* ================================ */
+
+.detection-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.detection-box {
+  position: absolute;
+  border: 3px solid #00ff00;
+  background: rgba(0, 255, 0, 0.15);
+  border-radius: 4px;
+  min-width: 120px;
+  min-height: 80px;
+  animation: detectionPulse 2s infinite;
+  transition: all 0.3s ease;
+}
+
+.detection-box.real-detection {
+  border-color: #00ff88;
+  background: rgba(0, 255, 136, 0.2);
+  box-shadow: 0 0 15px rgba(0, 255, 136, 0.5);
+}
+
+@keyframes detectionPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(0, 255, 0, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(0, 255, 0, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 255, 0, 0);
+  }
+}
+
+.detection-label {
+  position: absolute;
+  top: -35px;
+  left: 0;
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  white-space: nowrap;
+  display: flex;
+  gap: 8px;
+  z-index: 6;
+  min-width: 120px;
+}
+
+.safety-status.safe {
+  color: #28a745;
+  font-weight: bold;
+}
+
+.safety-status.danger {
+  color: #dc3545;
+  font-weight: bold;
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0.5;
+  }
+}
+
+.confidence {
+  color: #ffc107;
+  font-weight: bold;
+}
+
+.worker-id {
+  color: #17a2b8;
+  font-weight: bold;
+}
+
+/* ================================ */
+/* INFO PANEL STİLLERİ */
+/* ================================ */
+
+.info-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overflow-y: auto;
+}
+
+.info-card {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.info-card h4 {
+  margin-bottom: 1rem;
+  color: #495057;
+}
+
+.detection-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.detection-item {
+  display: flex;
+  gap: 1rem;
+  padding: 0.5rem;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.detection-item:last-child {
+  border-bottom: none;
+}
+
+.detection-time {
+  font-size: 0.8rem;
+  color: #6c757d;
+  white-space: nowrap;
+}
+
+.no-detections {
+  text-align: center;
+  color: #6c757d;
+  padding: 2rem;
+  font-style: italic;
+}
+
+.ppe-status.safe {
+  color: #28a745;
+}
+.ppe-status.danger {
+  color: #dc3545;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.stat-item {
+  text-align: center;
+  padding: 1rem;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #495057;
+}
+
+.stat-value.safe {
+  color: #28a745;
+}
+.stat-value.danger {
+  color: #dc3545;
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  color: #6c757d;
+  margin-top: 0.25rem;
+}
+
+.action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.action-btn {
+  padding: 0.75rem;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.action-btn:hover {
+  background: #0056b3;
+}
+
+/* ================================ */
+/* BUTON STİLLERİ */
+/* ================================ */
+
+.btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.3s ease;
+  font-size: 0.9rem;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-success {
+  background: #28a745;
+  color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+  background: #218838;
+}
+
+.btn-danger {
+  background: #dc3545;
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #c82333;
+}
+
+.btn-info {
+  background: #17a2b8;
+  color: white;
+}
+
+.btn-info:hover:not(:disabled) {
+  background: #138496;
+}
+
+.btn-secondary {
+  background: #6c757d;
+  color: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #5a6268;
+}
+
+.btn-warning {
+  background: #ffc107;
+  color: #212529;
+}
+
+.btn-warning:hover:not(:disabled) {
+  background: #e0a800;
+}
+
+.btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.btn-outline-secondary {
+  background: transparent;
+  color: #6c757d;
+  border: 1px solid #6c757d;
+}
+
+.btn-outline-secondary:hover {
+  background: #6c757d;
+  color: white;
+}
+
+/* ================================ */
+/* RESPONSIVE TASARIM */
+/* ================================ */
+
+@media (max-width: 768px) {
+  .content-grid {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .camera-view {
+    height: 300px;
+  }
+
+  .status-bar {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .camera-controls {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detection-label {
+    font-size: 10px;
+    padding: 2px 4px;
+    gap: 4px;
+    min-width: 100px;
+  }
+
+  .camera-list {
+    padding: 0.5rem;
+  }
+
+  .camera-item .btn {
+    width: 100%;
+    margin-bottom: 0.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .main-container {
+    padding: 0.5rem;
+  }
+
+  .panel-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+
+  .camera-controls {
+    justify-content: center;
+  }
+
+  .detection-box {
+    min-width: 80px;
+    min-height: 60px;
+  }
+
+  .placeholder-content {
+    padding: 1rem;
+  }
+
+  .camera-icon {
+    font-size: 3rem;
+  }
+}
+
+/* ================================ */
+/* SCROLL BAR STİLLERİ */
+/* ================================ */
+
+.detection-list::-webkit-scrollbar,
+.info-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.detection-list::-webkit-scrollbar-track,
+.info-panel::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.detection-list::-webkit-scrollbar-thumb,
+.info-panel::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.detection-list::-webkit-scrollbar-thumb:hover,
+.info-panel::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+</style>

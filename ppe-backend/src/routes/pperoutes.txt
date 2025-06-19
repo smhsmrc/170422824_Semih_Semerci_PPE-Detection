@@ -1,0 +1,1314 @@
+const express = require("express");
+const ppeController = require("../controllers/ppeController");
+const router = express.Router();
+
+// ✅ Temel monitoring route'ları
+router.post("/start-monitoring", ppeController.startMonitoring);
+router.post("/stop-monitoring", ppeController.stopMonitoring);
+router.get("/detections", ppeController.getDetections);
+router.get("/stats", ppeController.getStats);
+router.get("/camera/stream", ppeController.getCameraStream);
+router.get("/camera/status", ppeController.getCameraStatus);
+
+// ✅ Geriye uyumluluk
+router.post("/start", ppeController.startMonitoring);
+router.post("/stop", ppeController.stopMonitoring);
+
+// ✅ Mock data route'ları (controller yerine direkt tanımla)
+router.get("/statistics", async (req, res) => {
+  try {
+    const stats = {
+      totalDetections: 156,
+      safeDetections: 142,
+      violations: 14,
+      complianceRate: 91,
+      dailyStats: [
+        { date: "2025-06-13", detections: 45, violations: 3 },
+        { date: "2025-06-12", detections: 52, violations: 2 },
+        { date: "2025-06-11", detections: 38, violations: 5 },
+      ],
+    };
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: "İstatistik verisi alınamadı" });
+  }
+});
+
+router.get("/workers", async (req, res) => {
+  try {
+    const workers = [
+      {
+        id: 1,
+        name: "Ahmet Yılmaz",
+        department: "Üretim",
+        status: "active",
+        lastSeen: new Date().toISOString(),
+        complianceRate: 95,
+      },
+      {
+        id: 2,
+        name: "Mehmet Kaya",
+        department: "Montaj",
+        status: "active",
+        lastSeen: new Date().toISOString(),
+        complianceRate: 88,
+      },
+    ];
+    res.json(workers);
+  } catch (error) {
+    res.status(500).json({ error: "Çalışan verisi alınamadı" });
+  }
+});
+router.get("/departments", (req, res) => {
+  console.log("🏢 Departments istendi");
+
+  const mockDepartments = [
+    { id: 1, name: "Üretim", code: "PROD" },
+    { id: 2, name: "Kalite Kontrol", code: "QC" },
+    { id: 3, name: "Bakım-Onarım", code: "MAINT" },
+    { id: 4, name: "Depo", code: "WAREHOUSE" },
+    { id: 5, name: "İnsan Kaynakları", code: "HR" },
+    { id: 6, name: "Güvenlik", code: "SECURITY" },
+  ];
+
+  // Frontend sadece name array'i bekliyor
+  const departmentNames = mockDepartments.map((dept) => dept.name);
+
+  console.log("✅ Departments gönderiliyor:", departmentNames.length, "adet");
+  res.json(departmentNames);
+});
+
+// 2. Lokasyonları getir
+router.get("/locations", (req, res) => {
+  console.log("📍 Locations istendi");
+
+  const mockLocations = [
+    { id: 1, name: "Ana Üretim Hattı", code: "MAIN_LINE" },
+    { id: 2, name: "Montaj Alanı", code: "ASSEMBLY" },
+    { id: 3, name: "Kalite Laboratuvarı", code: "QC_LAB" },
+    { id: 4, name: "Hammadde Deposu", code: "RAW_STORAGE" },
+    { id: 5, name: "Mamul Deposu", code: "FINISHED_STORAGE" },
+    { id: 6, name: "Bakım Atölyesi", code: "MAINTENANCE_SHOP" },
+    { id: 7, name: "Ofis Alanı", code: "OFFICE" },
+    { id: 8, name: "Yemekhane", code: "CAFETERIA" },
+  ];
+
+  // Frontend sadece name array'i bekliyor
+  const locationNames = mockLocations.map((loc) => loc.name);
+
+  console.log("✅ Locations gönderiliyor:", locationNames.length, "adet");
+  res.json(locationNames);
+});
+
+// 3. Çalışan istatistiklerini getir
+router.get("/workers/statistics", (req, res) => {
+  console.log("📊 Worker statistics istendi");
+
+  const mockStats = {
+    totalWorkers: 45,
+    activeWorkers: 42,
+    averageCompliance: 87.5,
+    totalViolations: 8,
+    newWorkersThisMonth: 5,
+    complianceChange: 2.3,
+    violationChange: -3,
+    departmentStats: [
+      { department: "Üretim", workers: 18, compliance: 85.2 },
+      { department: "Kalite Kontrol", workers: 8, compliance: 95.1 },
+      { department: "Bakım-Onarım", workers: 12, compliance: 82.7 },
+      { department: "Depo", workers: 7, compliance: 91.4 },
+    ],
+    locationStats: [
+      { location: "Ana Üretim Hattı", workers: 15, compliance: 83.5 },
+      { location: "Montaj Alanı", workers: 10, compliance: 88.9 },
+      { location: "Kalite Laboratuvarı", workers: 6, compliance: 96.2 },
+      { location: "Depo Alanları", workers: 14, compliance: 90.1 },
+    ],
+  };
+
+  console.log("✅ Worker statistics gönderiliyor");
+  res.json(mockStats);
+});
+
+// 4. Tüm çalışanları getir
+router.get("/workers", (req, res) => {
+  console.log("👥 Workers listesi istendi");
+
+  const mockWorkers = [
+    {
+      id: 1,
+      name: "Ahmet Yılmaz",
+      workerId: "EMP001",
+      email: "ahmet.yilmaz@sirket.com",
+      phone: "+90 555 123 45 67",
+      department: "Üretim",
+      location: "Ana Üretim Hattı",
+      position: "Üretim Operatörü",
+      startDate: "2023-01-15",
+      status: "active",
+      managerId: 1,
+      complianceRate: 92.5,
+      monthlyViolations: 2,
+      recentViolations: 1,
+      lastSeen: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 saat önce
+      safetyScore: 85,
+      trainingStatus: "completed",
+      completedTrainings: 8,
+      notes: "Güvenilir çalışan, PPE kullanımında dikkatli.",
+      photo: null,
+      assignedPPE: [
+        {
+          type: "Baret",
+          status: "assigned",
+          assignedDate: "2023-01-15",
+          lastCheck: "2025-06-01",
+          condition: "good",
+        },
+        {
+          type: "Gözlük",
+          status: "assigned",
+          assignedDate: "2023-01-15",
+          lastCheck: "2025-06-01",
+          condition: "good",
+        },
+        {
+          type: "Eldiven",
+          status: "assigned",
+          assignedDate: "2023-01-15",
+          lastCheck: "2025-06-01",
+          condition: "fair",
+        },
+        {
+          type: "Yelek",
+          status: "assigned",
+          assignedDate: "2023-01-15",
+          lastCheck: "2025-06-01",
+          condition: "good",
+        },
+      ],
+      recentViolations: [
+        {
+          id: 1,
+          type: "Eksik PPE",
+          description: "Güvenlik gözlüğü takılmamış",
+          timestamp: new Date(
+            Date.now() - 3 * 24 * 60 * 60 * 1000
+          ).toISOString(),
+          location: "Ana Üretim Hattı",
+          status: "resolved",
+        },
+      ],
+    },
+    {
+      id: 2,
+      name: "Fatma Demir",
+      workerId: "EMP002",
+      email: "fatma.demir@sirket.com",
+      phone: "+90 555 234 56 78",
+      department: "Kalite Kontrol",
+      location: "Kalite Laboratuvarı",
+      position: "Kalite Kontrol Uzmanı",
+      startDate: "2022-08-20",
+      status: "active",
+      managerId: 2,
+      complianceRate: 98.1,
+      monthlyViolations: 0,
+      recentViolations: 0,
+      lastSeen: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30 dk önce
+      safetyScore: 95,
+      trainingStatus: "completed",
+      completedTrainings: 12,
+      notes: "Örnek çalışan, güvenlik konularında lider.",
+      photo: null,
+      assignedPPE: [
+        {
+          type: "Baret",
+          status: "assigned",
+          assignedDate: "2022-08-20",
+          lastCheck: "2025-06-01",
+          condition: "excellent",
+        },
+        {
+          type: "Gözlük",
+          status: "assigned",
+          assignedDate: "2022-08-20",
+          lastCheck: "2025-06-01",
+          condition: "good",
+        },
+        {
+          type: "Eldiven",
+          status: "assigned",
+          assignedDate: "2022-08-20",
+          lastCheck: "2025-06-01",
+          condition: "good",
+        },
+        {
+          type: "Maske",
+          status: "assigned",
+          assignedDate: "2022-08-20",
+          lastCheck: "2025-06-01",
+          condition: "good",
+        },
+      ],
+      recentViolations: [],
+    },
+    {
+      id: 3,
+      name: "Mehmet Kaya",
+      workerId: "EMP003",
+      email: "mehmet.kaya@sirket.com",
+      phone: "+90 555 345 67 89",
+      department: "Bakım-Onarım",
+      location: "Bakım Atölyesi",
+      position: "Bakım Teknisyeni",
+      startDate: "2023-03-10",
+      status: "active",
+      managerId: 3,
+      complianceRate: 78.3,
+      monthlyViolations: 5,
+      recentViolations: 3,
+      lastSeen: new Date(Date.now() - 10 * 60 * 1000).toISOString(), // 10 dk önce
+      safetyScore: 65,
+      trainingStatus: "in-progress",
+      completedTrainings: 4,
+      notes: "Güvenlik eğitimi gerekiyor, PPE kullanımında eksikler var.",
+      photo: null,
+      assignedPPE: [
+        {
+          type: "Baret",
+          status: "assigned",
+          assignedDate: "2023-03-10",
+          lastCheck: "2025-05-15",
+          condition: "fair",
+        },
+        {
+          type: "Eldiven",
+          status: "missing",
+          assignedDate: "2023-03-10",
+          lastCheck: "2025-05-15",
+          condition: "poor",
+        },
+        {
+          type: "Ayakkabı",
+          status: "assigned",
+          assignedDate: "2023-03-10",
+          lastCheck: "2025-05-15",
+          condition: "good",
+        },
+      ],
+      recentViolations: [
+        {
+          id: 2,
+          type: "Eksik PPE",
+          description: "İş eldiveni takılmamış",
+          timestamp: new Date(
+            Date.now() - 1 * 24 * 60 * 60 * 1000
+          ).toISOString(),
+          location: "Bakım Atölyesi",
+          status: "open",
+        },
+        {
+          id: 3,
+          type: "Yanlış PPE",
+          description: "Uygun olmayan ayakkabı",
+          timestamp: new Date(
+            Date.now() - 2 * 24 * 60 * 60 * 1000
+          ).toISOString(),
+          location: "Bakım Atölyesi",
+          status: "resolved",
+        },
+      ],
+    },
+    {
+      id: 4,
+      name: "Ayşe Çelik",
+      workerId: "EMP004",
+      email: "ayse.celik@sirket.com",
+      phone: "+90 555 456 78 90",
+      department: "Depo",
+      location: "Hammadde Deposu",
+      position: "Depo Sorumlusu",
+      startDate: "2023-05-22",
+      status: "active",
+      managerId: 4,
+      complianceRate: 89.7,
+      monthlyViolations: 1,
+      recentViolations: 1,
+      lastSeen: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(), // 4 saat önce
+      safetyScore: 82,
+      trainingStatus: "completed",
+      completedTrainings: 6,
+      notes: "İyi performans, ara sıra hatırlatma gerekiyor.",
+      photo: null,
+      assignedPPE: [
+        {
+          type: "Baret",
+          status: "assigned",
+          assignedDate: "2023-05-22",
+          lastCheck: "2025-06-01",
+          condition: "good",
+        },
+        {
+          type: "Yelek",
+          status: "assigned",
+          assignedDate: "2023-05-22",
+          lastCheck: "2025-06-01",
+          condition: "excellent",
+        },
+        {
+          type: "Ayakkabı",
+          status: "assigned",
+          assignedDate: "2023-05-22",
+          lastCheck: "2025-06-01",
+          condition: "good",
+        },
+      ],
+      recentViolations: [
+        {
+          id: 4,
+          type: "Eksik PPE",
+          description: "Güvenlik bareti takılmamış",
+          timestamp: new Date(
+            Date.now() - 5 * 24 * 60 * 60 * 1000
+          ).toISOString(),
+          location: "Hammadde Deposu",
+          status: "resolved",
+        },
+      ],
+    },
+    {
+      id: 5,
+      name: "Can Özkan",
+      workerId: "EMP005",
+      email: "can.ozkan@sirket.com",
+      phone: "+90 555 567 89 01",
+      department: "Üretim",
+      location: "Montaj Alanı",
+      position: "Montaj Operatörü",
+      startDate: "2024-01-08",
+      status: "training",
+      managerId: 1,
+      complianceRate: 65.4,
+      monthlyViolations: 8,
+      recentViolations: 4,
+      lastSeen: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 gün önce
+      safetyScore: 45,
+      trainingStatus: "in-progress",
+      completedTrainings: 2,
+      notes: "Yeni çalışan, yoğun eğitim programında.",
+      photo: null,
+      assignedPPE: [
+        {
+          type: "Baret",
+          status: "assigned",
+          assignedDate: "2024-01-08",
+          lastCheck: "2025-06-01",
+          condition: "good",
+        },
+        {
+          type: "Gözlük",
+          status: "missing",
+          assignedDate: "2024-01-08",
+          lastCheck: "2025-05-01",
+          condition: "poor",
+        },
+        {
+          type: "Eldiven",
+          status: "assigned",
+          assignedDate: "2024-01-08",
+          lastCheck: "2025-06-01",
+          condition: "fair",
+        },
+      ],
+      recentViolations: [
+        {
+          id: 5,
+          type: "Eksik PPE",
+          description: "Güvenlik gözlüğü takılmamış",
+          timestamp: new Date(
+            Date.now() - 1 * 24 * 60 * 60 * 1000
+          ).toISOString(),
+          location: "Montaj Alanı",
+          status: "open",
+        },
+      ],
+    },
+  ];
+
+  console.log("✅ Workers gönderiliyor:", mockWorkers.length, "adet");
+  res.json(mockWorkers);
+});
+
+// 5. Yöneticileri getir (managers için)
+router.get("/workers", (req, res) => {
+  // Eğer role=manager query'si varsa sadece yöneticileri döndür
+  if (req.query.role === "manager") {
+    console.log("👔 Managers istendi");
+
+    const mockManagers = [
+      {
+        id: 1,
+        name: "Ali Veli",
+        position: "Üretim Müdürü",
+        department: "Üretim",
+      },
+      {
+        id: 2,
+        name: "Zeynep Ak",
+        position: "Kalite Müdürü",
+        department: "Kalite Kontrol",
+      },
+      {
+        id: 3,
+        name: "Hasan Öz",
+        position: "Bakım Müdürü",
+        department: "Bakım-Onarım",
+      },
+      { id: 4, name: "Elif Kara", position: "Depo Müdürü", department: "Depo" },
+    ];
+
+    console.log("✅ Managers gönderiliyor:", mockManagers.length, "adet");
+    return res.json(mockManagers);
+  }
+
+  // Normal workers endpoint'i yukarıda zaten var
+});
+
+// 6. Tekil çalışan getir
+router.get("/workers/:id", (req, res) => {
+  console.log("👤 Worker detayı istendi, ID:", req.params.id);
+
+  // Bu normalde veritabanından gelecek
+  const worker = {
+    id: parseInt(req.params.id),
+    name: "Örnek Çalışan",
+    workerId: "EMP" + req.params.id.padStart(3, "0"),
+    // ... diğer detaylar
+  };
+
+  console.log("✅ Worker detayı gönderiliyor");
+  res.json(worker);
+});
+
+// 7. Yeni çalışan ekle
+router.post("/workers", (req, res) => {
+  console.log("➕ Yeni worker ekleniyor:", req.body);
+
+  const newWorker = {
+    id: Date.now(), // Geçici ID
+    ...req.body,
+    createdAt: new Date().toISOString(),
+  };
+
+  console.log("✅ Worker eklendi:", newWorker.id);
+  res.status(201).json(newWorker);
+});
+
+// 8. Çalışan güncelle
+router.put("/workers/:id", (req, res) => {
+  console.log("✏️ Worker güncelleniyor, ID:", req.params.id, "Data:", req.body);
+
+  const updatedWorker = {
+    id: parseInt(req.params.id),
+    ...req.body,
+    updatedAt: new Date().toISOString(),
+  };
+
+  console.log("✅ Worker güncellendi");
+  res.json(updatedWorker);
+});
+
+// 9. Çalışan pasifleştir
+router.put("/workers/:id/deactivate", (req, res) => {
+  console.log("🚫 Worker pasifleştiriliyor, ID:", req.params.id);
+
+  console.log("✅ Worker pasifleştirildi");
+  res.json({ message: "Çalışan pasifleştirildi", id: req.params.id });
+});
+
+// 10. Çalışan geçmişi
+router.get("/workers/history", (req, res) => {
+  console.log("📋 Worker history istendi, params:", req.query);
+
+  const mockHistory = [
+    {
+      id: 1,
+      type: "violation",
+      title: "PPE İhlali",
+      description: "Güvenlik gözlüğü takılmamış",
+      timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+      details: { location: "Ana Üretim Hattı", severity: "Orta" },
+    },
+    {
+      id: 2,
+      type: "training",
+      title: "Güvenlik Eğitimi Tamamlandı",
+      description: "Temel İş Güvenliği eğitimi başarıyla tamamlandı",
+      timestamp: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+      details: { duration: "4 saat", score: "95" },
+    },
+    {
+      id: 3,
+      type: "ppe",
+      title: "PPE Atandı",
+      description: "Yeni güvenlik eldiveni atandı",
+      timestamp: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+      details: { type: "Eldiven", condition: "Yeni" },
+    },
+  ];
+
+  console.log("✅ Worker history gönderiliyor:", mockHistory.length, "kayıt");
+  res.json(mockHistory);
+});
+
+// 11. PPE atama
+router.post("/workers/assign-ppe", (req, res) => {
+  console.log("🦺 PPE atanıyor:", req.body);
+
+  const { workerId, ppeTypes, assignmentDate, notes } = req.body;
+
+  console.log("✅ PPE atandı:", ppeTypes.length, "adet");
+  res.json({
+    message: "PPE başarıyla atandı",
+    workerId,
+    assignedPPE: ppeTypes,
+    assignmentDate,
+  });
+});
+
+// 12. PPE kaldır
+router.delete("/workers/:workerId/ppe/:ppeType", (req, res) => {
+  console.log("🗑️ PPE kaldırılıyor:", req.params);
+
+  console.log("✅ PPE kaldırıldı");
+  res.json({
+    message: "PPE kaldırıldı",
+    workerId: req.params.workerId,
+    ppeType: req.params.ppeType,
+  });
+});
+
+// 13. Çalışan raporu oluştur
+router.post("/workers/:id/report", (req, res) => {
+  console.log("📄 Worker raporu oluşturuluyor, ID:", req.params.id);
+
+  // Mock PDF response
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    "attachment; filename=worker-report.pdf"
+  );
+
+  console.log("✅ Worker raporu oluşturuldu");
+  res.send(Buffer.from("Mock PDF content"));
+});
+
+// 14. Çalışan dışa aktarma
+router.post("/workers/export", (req, res) => {
+  console.log("📊 Workers export istendi, filters:", req.body.filters);
+
+  // Mock Excel response
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  );
+  res.setHeader("Content-Disposition", "attachment; filename=workers.xlsx");
+
+  console.log("✅ Workers export hazırlandı");
+  res.send(Buffer.from("Mock Excel content"));
+});
+
+// 15. İçe aktarma şablonu
+router.get("/workers/import/template", (req, res) => {
+  console.log("📋 Import template istendi");
+
+  // Mock Excel template
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  );
+  res.setHeader(
+    "Content-Disposition",
+    "attachment; filename=workers-template.xlsx"
+  );
+
+  console.log("✅ Import template hazırlandı");
+  res.send(Buffer.from("Mock Excel template"));
+});
+
+// 16. İçe aktarma önizleme
+router.post("/workers/import/preview", (req, res) => {
+  console.log("🔍 Import preview istendi");
+
+  // Mock import preview data
+  const mockPreviewData = [
+    {
+      name: "Test Çalışan 1",
+      workerId: "EMP999",
+      department: "Üretim",
+      position: "Operatör",
+      errors: [],
+    },
+    {
+      name: "Test Çalışan 2",
+      workerId: "EMP998",
+      department: "Bilinmeyen",
+      position: "Teknisyen",
+      errors: ["Geçersiz departman"],
+    },
+  ];
+
+  console.log("✅ Import preview hazırlandı");
+  res.json(mockPreviewData);
+});
+
+// 17. İçe aktarma
+router.post("/workers/import", (req, res) => {
+  console.log("📥 Workers import başlıyor:", req.body.workers?.length, "kayıt");
+
+  console.log("✅ Workers import tamamlandı");
+  res.json({
+    message: "İçe aktarma tamamlandı",
+    imported: req.body.workers?.length || 0,
+    failed: 0,
+  });
+});
+
+
+// ================================
+// VIOLATIONS ENDPOINTS (Mevcut)
+// ================================
+
+// Violations stats (önceki koddan)
+router.get("/violations", (req, res) => {
+  console.log("⚠️ Violations listesi istendi");
+
+  const mockViolations = [
+    {
+      id: 1,
+      worker_id: "EMP001",
+      worker_name: "Ahmet Yılmaz",
+      violation_type: "Eksik PPE",
+      description: "Güvenlik gözlüğü takılmamış",
+      location: "Ana Üretim Hattı",
+      timestamp: Math.floor(Date.now() / 1000) - 3600, // 1 saat önce
+      severity: "medium",
+      status: "open",
+      image_url: null,
+      confidence: 0.92,
+    },
+    {
+      id: 2,
+      worker_id: "EMP003",
+      worker_name: "Mehmet Kaya",
+      violation_type: "Yanlış PPE",
+      description: "Uygun olmayan eldiven kullanımı",
+      location: "Bakım Atölyesi",
+      timestamp: Math.floor(Date.now() / 1000) - 7200, // 2 saat önce
+      severity: "high",
+      status: "resolved",
+      image_url: null,
+      confidence: 0.87,
+    },
+    {
+      id: 3,
+      worker_id: "EMP002",
+      worker_name: "Fatma Demir",
+      violation_type: "Eksik PPE",
+      description: "Güvenlik bareti takılmamış",
+      location: "Kalite Laboratuvarı",
+      timestamp: Math.floor(Date.now() / 1000) - 10800, // 3 saat önce
+      severity: "low",
+      status: "open",
+      image_url: null,
+      confidence: 0.78,
+    },
+    {
+      id: 4,
+      worker_id: "EMP004",
+      worker_name: "Ayşe Çelik",
+      violation_type: "Eksik PPE",
+      description: "Güvenlik yeleği takılmamış",
+      location: "Hammadde Deposu",
+      timestamp: Math.floor(Date.now() / 1000) - 14400, // 4 saat önce
+      severity: "medium",
+      status: "resolved",
+      image_url: null,
+      confidence: 0.95,
+    },
+    {
+      id: 5,
+      worker_id: "EMP005",
+      worker_name: "Can Özkan",
+      violation_type: "Yanlış PPE",
+      description: "Uygun olmayan ayakkabı",
+      location: "Montaj Alanı",
+      timestamp: Math.floor(Date.now() / 1000) - 18000, // 5 saat önce
+      severity: "high",
+      status: "open",
+      image_url: null,
+      confidence: 0.89,
+    },
+    {
+      id: 6,
+      worker_id: "EMP001",
+      worker_name: "Ahmet Yılmaz",
+      violation_type: "Eksik PPE",
+      description: "İş eldiveni takılmamış",
+      location: "Ana Üretim Hattı",
+      timestamp: Math.floor(Date.now() / 1000) - 21600, // 6 saat önce
+      severity: "medium",
+      status: "resolved",
+      image_url: null,
+      confidence: 0.91,
+    },
+    {
+      id: 7,
+      worker_id: "EMP003",
+      worker_name: "Mehmet Kaya",
+      violation_type: "Eksik PPE",
+      description: "Solunum maskesi takılmamış",
+      location: "Bakım Atölyesi",
+      timestamp: Math.floor(Date.now() / 1000) - 25200, // 7 saat önce
+      severity: "high",
+      status: "open",
+      image_url: null,
+      confidence: 0.86,
+    },
+    {
+      id: 8,
+      worker_id: "EMP002",
+      worker_name: "Fatma Demir",
+      violation_type: "Yanlış PPE",
+      description: "Eski model güvenlik gözlüğü",
+      location: "Kalite Laboratuvarı",
+      timestamp: Math.floor(Date.now() / 1000) - 28800, // 8 saat önce
+      severity: "low",
+      status: "resolved",
+      image_url: null,
+      confidence: 0.73,
+    },
+    {
+      id: 9,
+      worker_id: "EMP004",
+      worker_name: "Ayşe Çelik",
+      violation_type: "Eksik PPE",
+      description: "Güvenlik kulaklığı takılmamış",
+      location: "Hammadde Deposu",
+      timestamp: Math.floor(Date.now() / 1000) - 32400, // 9 saat önce
+      severity: "medium",
+      status: "open",
+      image_url: null,
+      confidence: 0.88,
+    },
+    {
+      id: 10,
+      worker_id: "EMP005",
+      worker_name: "Can Özkan",
+      violation_type: "Eksik PPE",
+      description: "Güvenlik gözlüğü takılmamış",
+      location: "Montaj Alanı",
+      timestamp: Math.floor(Date.now() / 1000) - 36000, // 10 saat önce
+      severity: "high",
+      status: "resolved",
+      image_url: null,
+      confidence: 0.94,
+    },
+    {
+      id: 11,
+      worker_id: "EMP001",
+      worker_name: "Ahmet Yılmaz",
+      violation_type: "Yanlış PPE",
+      description: "Hasarlı güvenlik bareti",
+      location: "Ana Üretim Hattı",
+      timestamp: Math.floor(Date.now() / 1000) - 39600, // 11 saat önce
+      severity: "medium",
+      status: "open",
+      image_url: null,
+      confidence: 0.82,
+    },
+    {
+      id: 12,
+      worker_id: "EMP003",
+      worker_name: "Mehmet Kaya",
+      violation_type: "Eksik PPE",
+      description: "Güvenlik ayakkabısı takılmamış",
+      location: "Bakım Atölyesi",
+      timestamp: Math.floor(Date.now() / 1000) - 43200, // 12 saat önce
+      severity: "high",
+      status: "resolved",
+      image_url: null,
+      confidence: 0.9,
+    },
+    {
+      id: 13,
+      worker_id: "EMP002",
+      worker_name: "Fatma Demir",
+      violation_type: "Eksik PPE",
+      description: "İş eldiveni takılmamış",
+      location: "Kalite Laboratuvarı",
+      timestamp: Math.floor(Date.now() / 1000) - 46800, // 13 saat önce
+      severity: "low",
+      status: "open",
+      image_url: null,
+      confidence: 0.76,
+    },
+    {
+      id: 14,
+      worker_id: "EMP004",
+      worker_name: "Ayşe Çelik",
+      violation_type: "Yanlış PPE",
+      description: "Uygun olmayan iş eldiveni",
+      location: "Hammadde Deposu",
+      timestamp: Math.floor(Date.now() / 1000) - 50400, // 14 saat önce
+      severity: "medium",
+      status: "resolved",
+      image_url: null,
+      confidence: 0.85,
+    },
+    {
+      id: 15,
+      worker_id: "EMP005",
+      worker_name: "Can Özkan",
+      violation_type: "Eksik PPE",
+      description: "Güvenlik yeleği takılmamış",
+      location: "Montaj Alanı",
+      timestamp: Math.floor(Date.now() / 1000) - 54000, // 15 saat önce
+      severity: "high",
+      status: "open",
+      image_url: null,
+      confidence: 0.93,
+    },
+  ];
+
+  console.log("✅ Violations gönderiliyor:", mockViolations.length, "adet");
+
+  // ÖNEMLİ: Frontend violations array'i bekliyor, obje değil!
+  res.json(mockViolations);
+});
+
+// Violations stats - GÜNCELLENMİŞ
+router.get("/violations/stats", (req, res) => {
+  console.log("📊 Violation stats istendi");
+
+  const now = Math.floor(Date.now() / 1000);
+  const today = now - (now % 86400); // Bugünün başlangıcı
+
+  const mockStats = {
+    total: 15,
+    today: 3,
+    uniqueWorkers: 8,
+    complianceRate: 87.5,
+    byType: {
+      "Eksik PPE": 10,
+      "Yanlış PPE": 5,
+    },
+    bySeverity: {
+      high: 5,
+      medium: 7,
+      low: 3,
+    },
+    byStatus: {
+      open: 8,
+      resolved: 7,
+    },
+    byLocation: {
+      "Ana Üretim Hattı": 3,
+      "Bakım Atölyesi": 3,
+      "Kalite Laboratuvarı": 3,
+      "Hammadde Deposu": 3,
+      "Montaj Alanı": 3,
+    },
+    trend: {
+      thisWeek: 15,
+      lastWeek: 18,
+      change: -16.7,
+    },
+  };
+
+  console.log("✅ Violation stats gönderiliyor:", mockStats);
+  res.json(mockStats);
+});
+
+// Violation güncelle
+router.put("/violations/:id", (req, res) => {
+  console.log(
+    "✏️ Violation güncelleniyor, ID:",
+    req.params.id,
+    "Data:",
+    req.body
+  );
+
+  const updatedViolation = {
+    id: parseInt(req.params.id),
+    ...req.body,
+    updatedAt: new Date().toISOString(),
+  };
+
+  console.log("✅ Violation güncellendi");
+  res.json(updatedViolation);
+});
+
+// Violation sil
+router.delete("/violations/:id", (req, res) => {
+  console.log("🗑️ Violation siliniyor, ID:", req.params.id);
+
+  console.log("✅ Violation silindi");
+  res.json({ message: "Violation silindi", id: req.params.id });
+});
+
+// Violations export
+router.post("/violations/export", (req, res) => {
+  console.log("📊 Violations export istendi, filters:", req.body);
+
+  // Mock Excel response
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  );
+  res.setHeader("Content-Disposition", "attachment; filename=violations.xlsx");
+
+  console.log("✅ Violations export hazırlandı");
+  res.send(Buffer.from("Mock Excel content"));
+});
+
+router.get("/settings", (req, res) => {
+  console.log("⚙️ Settings istendi");
+
+  const mockSettings = {
+    // Kamera Ayarları
+    camera: {
+      url: "rtsp://192.168.1.100:554/stream",
+      fpsLimit: 30,
+      resolution: "1920x1080",
+      enabled: true,
+      recordingEnabled: false,
+      recordingPath: "/recordings",
+      streamQuality: "high",
+    },
+
+    // AI Model Ayarları
+    ai: {
+      modelPath: "model/best.pt",
+      confidenceThreshold: 0.5, // 50%
+      nmsThreshold: 0.4, // 40%
+      inputSize: 640,
+      batchSize: 1,
+      deviceType: "cpu", // cpu, gpu, auto
+      enableGPU: false,
+      maxDetections: 100,
+    },
+
+    // Bildirim Ayarları
+    notifications: {
+      emailEnabled: true,
+      smsEnabled: false,
+      pushEnabled: true,
+      emailRecipients: ["admin@sirket.com", "guvenlik@sirket.com"],
+      smsRecipients: ["+90555123456"],
+      violationNotifications: true,
+      dailyReports: true,
+      weeklyReports: true,
+      criticalAlerts: true,
+    },
+
+    // Sistem Ayarları
+    system: {
+      language: "tr",
+      timezone: "Europe/Istanbul",
+      dateFormat: "DD/MM/YYYY",
+      timeFormat: "24h",
+      autoBackup: true,
+      backupInterval: "daily",
+      backupRetention: 30, // gün
+      logLevel: "info",
+      maxLogSize: 100, // MB
+      sessionTimeout: 30, // dakika
+    },
+
+    // Güvenlik Ayarları
+    security: {
+      passwordPolicy: {
+        minLength: 8,
+        requireUppercase: true,
+        requireLowercase: true,
+        requireNumbers: true,
+        requireSymbols: false,
+        expirationDays: 90,
+      },
+      twoFactorAuth: false,
+      loginAttempts: 5,
+      lockoutDuration: 15, // dakika
+      sessionSecurity: "medium",
+      ipWhitelist: [],
+      auditLog: true,
+    },
+
+    // Performans Ayarları
+    performance: {
+      cacheEnabled: true,
+      cacheSize: 256, // MB
+      compressionEnabled: true,
+      optimizeImages: true,
+      lazyLoading: true,
+      maxConcurrentStreams: 4,
+      processingQueue: 10,
+      memoryLimit: 1024, // MB
+    },
+
+    // İntegrasyon Ayarları
+    integrations: {
+      database: {
+        host: "localhost",
+        port: 5432,
+        name: "ppe_system",
+        ssl: false,
+        poolSize: 10,
+      },
+      api: {
+        rateLimit: 1000, // requests/hour
+        timeout: 30, // seconds
+        retryAttempts: 3,
+        enableCors: true,
+      },
+      webhook: {
+        enabled: false,
+        url: "",
+        secret: "",
+        events: ["violation", "alert"],
+      },
+    },
+  };
+
+  console.log("✅ Settings gönderiliyor");
+  res.json(mockSettings);
+});
+
+// Sistem ayarlarını güncelle
+router.put("/settings", (req, res) => {
+  console.log("💾 Settings güncelleniyor:", req.body);
+
+  const updatedSettings = {
+    ...req.body,
+    updatedAt: new Date().toISOString(),
+    updatedBy: "admin", // Normalde JWT'den gelecek
+  };
+
+  console.log("✅ Settings güncellendi");
+  res.json({
+    message: "Ayarlar başarıyla güncellendi",
+    settings: updatedSettings,
+  });
+});
+
+// Belirli kategori ayarlarını getir
+router.get("/settings/:category", (req, res) => {
+  console.log("⚙️ Settings kategorisi istendi:", req.params.category);
+
+  const category = req.params.category;
+  const allSettings = {
+    camera: {
+      url: "rtsp://192.168.1.100:554/stream",
+      fpsLimit: 30,
+      resolution: "1920x1080",
+      enabled: true,
+    },
+    ai: {
+      modelPath: "model/best.pt",
+      confidenceThreshold: 0.5,
+      nmsThreshold: 0.4,
+      inputSize: 640,
+    },
+    notifications: {
+      emailEnabled: true,
+      smsEnabled: false,
+      pushEnabled: true,
+    },
+    system: {
+      language: "tr",
+      timezone: "Europe/Istanbul",
+      dateFormat: "DD/MM/YYYY",
+    },
+  };
+
+  if (allSettings[category]) {
+    console.log("✅ Settings kategorisi gönderiliyor:", category);
+    res.json(allSettings[category]);
+  } else {
+    console.log("❌ Bilinmeyen settings kategorisi:", category);
+    res.status(404).json({ error: "Kategori bulunamadı" });
+  }
+});
+
+// Belirli kategori ayarlarını güncelle
+router.put("/settings/:category", (req, res) => {
+  console.log(
+    "💾 Settings kategorisi güncelleniyor:",
+    req.params.category,
+    req.body
+  );
+
+  const updatedCategorySettings = {
+    category: req.params.category,
+    ...req.body,
+    updatedAt: new Date().toISOString(),
+  };
+
+  console.log("✅ Settings kategorisi güncellendi");
+  res.json({
+    message: `${req.params.category} ayarları güncellendi`,
+    settings: updatedCategorySettings,
+  });
+});
+
+// Ayarları varsayılana sıfırla
+router.post("/settings/reset", (req, res) => {
+  console.log("🔄 Settings sıfırlanıyor, kategori:", req.body.category);
+
+  const { category } = req.body;
+
+  if (category) {
+    console.log("✅ Settings kategorisi sıfırlandı:", category);
+    res.json({ message: `${category} ayarları sıfırlandı` });
+  } else {
+    console.log("✅ Tüm settings sıfırlandı");
+    res.json({ message: "Tüm ayarlar sıfırlandı" });
+  }
+});
+
+// Ayarları dışa aktar
+router.get("/settings/export", (req, res) => {
+  console.log("📤 Settings export istendi");
+
+  // Mock JSON export
+  res.setHeader("Content-Type", "application/json");
+  res.setHeader("Content-Disposition", "attachment; filename=settings.json");
+
+  const exportData = {
+    exportedAt: new Date().toISOString(),
+    version: "1.0.0",
+    settings: {
+      camera: { url: "rtsp://192.168.1.100:554/stream", fpsLimit: 30 },
+      ai: { modelPath: "model/best.pt", confidenceThreshold: 0.5 },
+    },
+  };
+
+  console.log("✅ Settings export hazırlandı");
+  res.json(exportData);
+});
+
+// Ayarları içe aktar
+router.post("/settings/import", (req, res) => {
+  console.log("📥 Settings import başlıyor:", req.body);
+
+  const { settings, overwrite = false } = req.body;
+
+  console.log("✅ Settings import tamamlandı");
+  res.json({
+    message: "Ayarlar başarıyla içe aktarıldı",
+    imported: Object.keys(settings || {}).length,
+    overwrite,
+  });
+});
+
+// Sistem durumu kontrolü
+router.get("/settings/health", (req, res) => {
+  console.log("🏥 System health check istendi");
+
+  const healthStatus = {
+    status: "healthy",
+    timestamp: new Date().toISOString(),
+    services: {
+      database: { status: "up", responseTime: 45 },
+      camera: { status: "up", responseTime: 120 },
+      ai: { status: "up", responseTime: 230 },
+      storage: { status: "up", usage: "45%" },
+    },
+    system: {
+      uptime: "2d 14h 32m",
+      memory: { used: "512MB", total: "2GB", percentage: 25 },
+      cpu: { usage: "15%", temperature: "45°C" },
+      disk: { used: "45GB", total: "100GB", percentage: 45 },
+    },
+    version: "1.0.0",
+    environment: "production",
+  };
+
+  console.log("✅ System health gönderiliyor");
+  res.json(healthStatus);
+});
+
+// Ayar validasyonu
+router.post("/settings/validate", (req, res) => {
+  console.log("✅ Settings validation istendi:", req.body);
+
+  const { category, settings } = req.body;
+  const validationResults = {
+    valid: true,
+    errors: [],
+    warnings: [],
+  };
+
+  // Mock validation
+  if (category === "camera" && settings.fpsLimit > 60) {
+    validationResults.warnings.push(
+      "Yüksek FPS değeri performansı etkileyebilir"
+    );
+  }
+
+  if (category === "ai" && settings.confidenceThreshold < 0.3) {
+    validationResults.warnings.push(
+      "Düşük güven eşiği yanlış pozitif sonuçlar verebilir"
+    );
+  }
+
+  console.log("✅ Settings validation tamamlandı");
+  res.json(validationResults);
+});
+
+// Ayar geçmişi
+router.get("/settings/history", (req, res) => {
+  console.log("📋 Settings history istendi");
+
+  const mockHistory = [
+    {
+      id: 1,
+      category: "camera",
+      action: "update",
+      field: "fpsLimit",
+      oldValue: 25,
+      newValue: 30,
+      changedBy: "admin",
+      timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      reason: "Performans iyileştirmesi",
+    },
+    {
+      id: 2,
+      category: "ai",
+      action: "update",
+      field: "confidenceThreshold",
+      oldValue: 0.6,
+      newValue: 0.5,
+      changedBy: "admin",
+      timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+      reason: "Daha hassas tespit için",
+    },
+    {
+      id: 3,
+      category: "notifications",
+      action: "update",
+      field: "emailEnabled",
+      oldValue: false,
+      newValue: true,
+      changedBy: "admin",
+      timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      reason: "E-posta bildirimlerini etkinleştir",
+    },
+  ];
+
+  console.log("✅ Settings history gönderiliyor:", mockHistory.length, "kayıt");
+  res.json(mockHistory);
+});
+
+
+module.exports = router;
